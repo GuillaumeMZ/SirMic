@@ -1,0 +1,32 @@
+{
+  "name": "sirmic",
+  "version": "1.0.0",
+  "description": "Who are the persons who talk the most on your discord server? Figure it out with SirMic, a bot designed to attribute xp to your guild's members according to their vocal activity !",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GuillaumeMZ/SirMic.git"
+  },
+  "keywords": [
+    "sirmic",
+    "bot",
+    "xp",
+    "activity",
+    "vocal",
+    "discord",
+    "measure"
+  ],
+  "author": "GuillaumeMZ",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/GuillaumeMZ/SirMic/issues"
+  },
+  "homepage": "https://github.com/GuillaumeMZ/SirMic#readme",
+  "dependencies": {
+    "discord.js": "^13.1.0",
+    "pg": "^8.7.1"
+  }
+}
