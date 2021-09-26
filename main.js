@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client : DiscordClient, Intents } = require('discord.js');
+const { Client : DiscordClient, Intents, MessageEmbed } = require('discord.js');
 const { Client : PostgresClient } = require('pg');
 
 const discordClient = new DiscordClient({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]});
@@ -15,41 +15,140 @@ const botStatuses = ["mic!help", "Portal 2 :3", "c'est qui Rem?", "vous êtes to
 "se faire passer pour Dieu", "faire l'arbre en titubant", "avoir la flemme", "manger", "t ki?",
 "asking for da wae", "dominer le monde", "j'ai plus d'inspi", "la pétanque",
 "vous avez des idées?", "tabasser MEE6", "frétiller", "manger des choux à la crème", "farmer l'xp",
-"être un bot de type acier", "I am mad Bot, it's so cooool, sonuvabitch"];
+"être un bot de type acier", "I am mad Bot, it's so cooool, sonuvabitch", "ne pas être supprimé par Discord"];
 
-sqlConnection.connect(err => {
-    if(err){
-        console.error('Unable to connect to the database.', err.message);
-    } else {
-        console.log('connected');
-    }
-});
+sqlConnection.connect()
+    .catch(err => console.log(err));
 
-const getXpFromLevel = (level) => Math.round((1.0141*(level**2.5954))*60);
-const getLevelFromXp = (xp) => Math.floor(Math.exp(Math.log(xp/60/1.0141)/2.5954));
+function changeBotStatus(){
+    discordClient.user.setPresence({activities: [{name: getRandomStatus()}]});
+}
 
-function canMemberEarnXp(member, channel){
+function getRandomStatus(){
+    return botStatuses[Math.round(Math.random()*botStatuses.length)];
+}
+
+function canMemberEarnXp(member, channel){ //TODO merge filters when it's done
     return channel.filter(user => user.id != member.id)
                   .filter(user => !user.user.bot)
                   .filter(user => !user.voice.selfMute && !user.voice.selfDeaf)
                   .size != 0;
 }
 
-function updateMemberXp(member, guild){
 
+function updateMemberXp(guildId, memberId){
+    const getLevelQuery = `SELECT lastlevel FROM guild_${guildId} WHERE id='${memberId}'`;
+    
+    sqlConnection.query(getLevelQuery)
+        .then(result =>{
+            const currentLevel = result.rows[0].lastlevel;
+            sqlConnection.query(`CALL UpdateMemberXp(${guildId}, ${memberId})`)
+                .then(result2 =>{
+                    sqlConnection.query(getLevelQuery)
+                        .then(result3 => {
+                            const newLevel = result3.rows[0].lastlevel;
+                            if(newLevel > currentLevel){
+                                //Envoyer un message
+                            }
+                        })
+                        .catch(error3 =>{
+                            console.log(error3);
+                        });
+                })
+                .catch(error2 =>{
+                    console.log(error2);
+                });
+        })
+        .catch(error =>{
+            console.log(error);
+        });
 }
 
-function updateMembersXp(){ //TODO change ifs into filter then call each
+function updateMembersXp(){
     discordClient.guilds.cache.each(guild => {
-        guild.channels.cache.each(channel => {
-            if(!channel.isVoice() || channel.id == guild.afkChannelId) return;
-
-            channel.members.each(member =>{
-                if(!canMemberEarnXp(member, channel)) return;
-                updateMemberXp(member, guild);
-            });
+        guild.channels.cache
+        .filter(channel => channel.isVoice() && channel.id !== guild.afkChannelId)
+        .each(channel => {
+            channel.members
+            .filter(member => canMemberEarnXp(member, channel))
+            .each(member => updateMemberXp(member, guild));
         });
     });
 }
+
+discordClient.on('ready', () => {
+    const guildId = '375698086942736384';
+    const guild = discordClient.guilds.cache.get(guildId);
+    let commands = guild.commands;
+
+    commands.create({
+        name: 'rank',
+        description: 'Retrieves the rank of a user (if not specified, retrieves the rank of the caller)',
+        options: [{
+            name: 'user',
+            description: 'The user to get the rank to',
+            required: false,
+            type: 6 //User
+        }]
+    });
+});
+
+discordClient.on('interactionCreate', async (interaction) => {
+    if(!interaction.isCommand()) return;
+
+    const {commandName, options} = interaction;
+    
+    if(commandName === 'rank'){
+        const targetUser = options.getUser('user') != null ? options.getUser('user') : interaction.user;
+
+        sqlConnection.query(`WITH users AS (SELECT id, name, xp, lastlevel, RANK() OVER (ORDER BY xp DESC) rank FROM guild_${interaction.guildId}) SELECT name, xp, lastlevel, rank FROM users WHERE id='${targetUser.id}'`)
+            .then(result => {
+                const resultEmbed = new MessageEmbed()
+                    .setTitle(`**${targetUser.username}'s ranking:**`)
+                    .setColor(0x206694)
+                    .setAuthor(`${targetUser.username}`)
+                    .setThumbnail(targetUser.displayAvatarURL())
+                    .addFields(
+                        {name: 'Rank:', value: `#${result.rows[0].rank}`},
+                        {name: 'Level:', value: `${result.rows[0].lastlevel}`},
+                        {name: 'XP:', value: `${result.rows[0].xp}`}
+                    )
+                    .setFooter('Bot made by DefectiveTurret#6250 !');
+                interaction.reply({
+                    embeds: [resultEmbed],
+                });
+            })
+            .catch(error => {
+                console.log(error);
+            });
+        
+    } else if(commandName === 'top'){
+        const guildId = interaction.guildId;
+        sqlConnection.query(`SELECT name, xp, lastlevel, RANK() OVER (ORDER BY xp DESC) rank FROM guild_${guildId})`)
+            .then(result => {
+                const resultEmbed = new MessageEmbed()
+                    .setTitle(`**${interaction.guild.name}'s ranking:**`)
+                    .setDescription('')
+                    .setColor(0x206694)
+                    .setFooter('Bot made by DefectiveTurret#6250 !');
+                interaction.reply({
+                    embeds: [resultEmbed]
+                });
+            })
+            .catch(error => {
+                console.log(error);
+            }); 
+    }
+});
+
+discordClient.on('guildCreate', guild => {
+    sqlConnection.query(`CALL RegisterNewGuild(${guild.id})`);
+});
+
+discordClient.on('voiceStateUpdate', (oldState, newState) => {
+    if(oldState.member.user.bot || newState == null) return;
+
+    sqlConnection.query(`CALL CheckUserExistence(${oldState.guild.id}, ${oldState.member.user.id})`);
+});
 
 discordClient.login(process.env.BOT_TOKEN);
