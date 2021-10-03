@@ -77,3 +77,7 @@ typings/
 
 #SirMic python source
 main.py
+
+#Docker files
+Dockerfile
+.dockerignore

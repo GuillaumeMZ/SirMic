@@ -3,6 +3,7 @@ const { Client : DiscordClient, Intents, MessageEmbed } = require('discord.js');
 const { Client : PostgresClient } = require('pg');
 
 const discordClient = new DiscordClient({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]});
+const EMBED_COLOR = 0x206694;
 
 const sqlConnection = new PostgresClient({
     user: process.env.DB_USER,
@@ -18,6 +19,11 @@ const botStatuses = ["mic!help", "Portal 2 :3", "c'est qui Rem?", "vous êtes to
 "être un bot de type acier", "I am mad Bot, it's so cooool, sonuvabitch", "ne pas être supprimé par Discord"];
 
 sqlConnection.connect()
+    .then(result => {
+        sqlConnection.query('SELECT NOW()')
+            .then(result2 => console.log(result2))
+            .catch(err2 => console.log(err2))
+    })
     .catch(err => console.log(err));
 
 function changeBotStatus(){
@@ -34,7 +40,6 @@ function canMemberEarnXp(member, channel){ //TODO merge filters when it's done
                   .filter(user => !user.voice.selfMute && !user.voice.selfDeaf)
                   .size != 0;
 }
-
 
 function updateMemberXp(guildId, memberId){
     const getLevelQuery = `SELECT lastlevel FROM guild_${guildId} WHERE id='${memberId}'`;
@@ -105,7 +110,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             .then(result => {
                 const resultEmbed = new MessageEmbed()
                     .setTitle(`**${targetUser.username}'s ranking:**`)
-                    .setColor(0x206694)
+                    .setColor(EMBED_COLOR)
                     .setAuthor(`${targetUser.username}`)
                     .setThumbnail(targetUser.displayAvatarURL())
                     .addFields(
@@ -125,11 +130,11 @@ discordClient.on('interactionCreate', async (interaction) => {
     } else if(commandName === 'top'){
         const guildId = interaction.guildId;
         sqlConnection.query(`SELECT name, xp, lastlevel, RANK() OVER (ORDER BY xp DESC) rank FROM guild_${guildId})`)
-            .then(result => {
+            .then(_ => {
                 const resultEmbed = new MessageEmbed()
                     .setTitle(`**${interaction.guild.name}'s ranking:**`)
                     .setDescription('')
-                    .setColor(0x206694)
+                    .setColor(EMBED_COLOR)
                     .setFooter('Bot made by DefectiveTurret#6250 !');
                 interaction.reply({
                     embeds: [resultEmbed]
@@ -150,5 +155,15 @@ discordClient.on('voiceStateUpdate', (oldState, newState) => {
 
     sqlConnection.query(`CALL CheckUserExistence(${oldState.guild.id}, ${oldState.member.user.id})`);
 });
+
+/*discordClient.on('ready', () => {
+    setInterval(() => {
+        changeBotStatus();
+    }, 10000);
+
+    setInterval(() => {
+        updateMembersXp();
+    }, 60000);
+});*/
 
 discordClient.login(process.env.BOT_TOKEN);
