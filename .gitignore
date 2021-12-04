@@ -81,3 +81,9 @@ main.py
 #Docker files
 Dockerfile
 .dockerignore
+
+#ESLint configuration file
+.eslintrc.json
+
+#VSCode files
+.vscode/
