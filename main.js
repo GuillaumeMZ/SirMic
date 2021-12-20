@@ -1,18 +1,12 @@
 require('dotenv').config();
-const {Client: DiscordClient, Intents, MessageEmbed} = require('discord.js');
-const {Client: PostgresClient} = require('pg');
+const {Client: DiscordClient, Intents} = require('discord.js');
 
 const {RankCommand} = require('./commands/rank');
 const {TopCommand} = require('./commands/top');
 
-const discordClient = new DiscordClient({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]});
+const {sqlConnection, GetUserLevel, UpdateMemberXp, GetServerLogChannel, RegisterUser} = require('./database.js');
 
-const sqlConnection = new PostgresClient({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
-});
+const discordClient = new DiscordClient({intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES]});
 
 const botStatuses = ["mic!help", "Portal 2 :3", "c'est qui Rem?", "vous êtes toujours là?", "OP PLZ NERF", "RUSH B CYKA",
 "se faire passer pour Dieu", "faire l'arbre en titubant", "avoir la flemme", "manger", "t ki?",
@@ -22,8 +16,6 @@ const botStatuses = ["mic!help", "Portal 2 :3", "c'est qui Rem?", "vous êtes to
 
 const commands = [new RankCommand(), new TopCommand()];
 
-sqlConnection.connect()
-    .catch(_ => console.log('Unable to connect to the database.'));
 
 function changeBotStatus(){
     discordClient.user.setPresence({activities: [{name: getRandomStatus()}]});
@@ -33,22 +25,33 @@ function getRandomStatus(){
     return botStatuses[Math.round(Math.random() * botStatuses.length)];
 }
 
-function canMemberEarnXp(member, channel){ //TODO merge filters when it's done
-    return channel.filter(user => user.id != member.id)
-                  .filter(user => !user.user.bot)
-                  .filter(user => !user.voice.selfMute && !user.voice.selfDeaf)
-                  .size != 0;
+function canMemberEarnXp(channel, member){
+    if(member.user.bot) return false;
+    if(member.user.voice.selfMute || member.user.voice.selfDeaf) return false;
+    
+    return channel.members
+        .filter(user => user.id != member.id)
+        .filter(user => !user.user.bot)
+        .filter(user => !user.voice.selfMute && !user.voice.selfDeaf)
+        .size != 0;
 }
 
-async function updateMemberXp(guildId, memberId){
-    const getLevelQuery = `SELECT lastlevel FROM guild_${guildId} WHERE id='${memberId}'`;
-    
-    const oldLevel = await sqlConnection.query(getLevelQuery);
-    await sqlConnection.query(`CALL UpdateMemberXp(${guildId}, ${memberId})`)
-    const newLevel = await sqlConnection.query(getLevelQuery);
+async function updateMemberXp(guild, member){
+    const guildId = guild.id;
+    const memberId = member.id;
+
+    const oldLevel = await GetUserLevel(guildId, memberId);
+    await UpdateMemberXp(guildId, memberId);
+    const newLevel = await GetUserLevel(guildId, memberId);
 
     if(newLevel > oldLevel) {
-        //Envoyer un message
+        //Envoyer un message: on commence par récupérer le salon dans lequel le message doit être envoyé
+        //TODO vérifier les erreurs
+        const logChannelId = await GetServerLogChannel(guildId);
+        const logChannel = await discordClient.channels.fetch(logChannelId);
+        
+        //Envoi du message
+        await logChannel.send(`Félicitations <@${memberId}>, vous venez de passer au niveau ${newLevel} !`);
     }
 }
 
@@ -58,8 +61,8 @@ function updateMembersXp(){
         .filter(channel => channel.isVoice() && channel.id !== guild.afkChannelId)
         .each(channel => {
             channel.members
-            .filter(member => canMemberEarnXp(member, channel))
-            .each(member => updateMemberXp(member, guild));
+            .filter(member => canMemberEarnXp(channel, member))
+            .each(member => updateMemberXp(guild, member));
         });
     });
 }
@@ -79,27 +82,22 @@ discordClient.on('interactionCreate', async interaction => {
     await commands.find(command => command.commandName === commandName).execute(interaction, sqlConnection);
 });
 
-/*discordClient.on('guildCreate', guild => {
-    sqlConnection.query(`CALL RegisterNewGuild(${guild.id})`);
-});*/
-
-/*discordClient.on('voiceStateUpdate', (oldState, newState) => {
+discordClient.on('voiceStateUpdate', async (oldState, newState) => {
     if(oldState.member.user.bot || newState == null) return;
 
-    sqlConnection.query(`CALL CheckUserExistence(${oldState.guild.id}, ${oldState.member.user.id})`);
-});*/
+    await RegisterUser(oldState.guild.id, oldState.member.user.id);
+});
 
 discordClient.on('ready', async () => {
-    /*setInterval(() => {
+    changeBotStatus();
+
+    setInterval(() => {
         changeBotStatus();
-    }, 10000);
+    }, 3600000);
 
     setInterval(() => {
         updateMembersXp();
-    }, 60000);*/
-
-    const date = await sqlConnection.query('SELECT NOW()');
-    console.log(date);
+    }, 60000);
 });
 
 discordClient.login(process.env.BOT_TOKEN);

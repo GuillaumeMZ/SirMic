@@ -24,7 +24,7 @@ class RankCommand {
         const options = interaction.options;
         const targetUser = options.getUser('user') ?? interaction.user;
 
-        const result = await sqlConnection.query(`WITH users AS (SELECT id, name, xp, lastlevel, RANK() OVER (ORDER BY xp DESC) rank FROM guild_${interaction.guildId}) SELECT name, xp, lastlevel, rank FROM users WHERE id='${targetUser.id}'`)
+        const result = await sqlConnection.query(`WITH users AS (SELECT idserver, iduser, userxp, GetUserLevel(idserver, iduser) AS level, RANK() OVER (ORDER BY userxp DESC) rank FROM levels WHERE idserver = ${interaction.guildId}) SELECT iduser, userxp, level, rank FROM users WHERE iduser = ${targetUser.id}`);
         
         const resultEmbed = new MessageEmbed()
             .setTitle(`**${targetUser.username}'s ranking:**`)
@@ -33,8 +33,8 @@ class RankCommand {
             .setThumbnail(targetUser.displayAvatarURL())
             .addFields(
                 {name: 'Rank:', value: `#${result.rows[0].rank}`},
-                {name: 'Level:', value: `${result.rows[0].lastlevel}`},
-                {name: 'XP:', value: `${result.rows[0].xp}`}
+                {name: 'Level:', value: `${result.rows[0].level}`},
+                {name: 'XP:', value: `${result.rows[0].userxp}`}
             )
             .setFooter('Bot made by DefectiveTurret#6250 !');
         interaction.reply({

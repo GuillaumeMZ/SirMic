@@ -1,5 +1,4 @@
-const EMBED_COLOR = 0x206694;
-const TOP_LINK = 'https://www.jexistepasencore.sirmic.zebi';
+const { MessageActionRow, MessageButton } = require('discord.js');
 
 class TopCommand {
     constructor() {
@@ -13,9 +12,19 @@ class TopCommand {
         });
     }
 
-    async execute(interaction, sqlConnection) {
-        const guildId = interaction.guildId;
-        interaction.reply(TOP_LINK);
+    async execute(interaction, _) {
+        const result = new MessageActionRow()
+                        .addComponents(
+                            new MessageButton()
+                                .setLabel('Consulter le classement')
+                                .setStyle('LINK')
+                                .setURL('https://www.perdu.com')
+                        );
+        
+        await interaction.reply({
+            content: 'Cliquez sur le bouton pour consulter le classement !',
+            components : [result]
+        });
     }
 }
 
