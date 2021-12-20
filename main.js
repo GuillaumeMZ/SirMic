@@ -27,7 +27,7 @@ function getRandomStatus(){
 
 function canMemberEarnXp(channel, member){
     if(member.user.bot) return false;
-    if(member.user.voice.selfMute || member.user.voice.selfDeaf) return false;
+    if(member.voice.selfMute || member.voice.selfDeaf) return false;
     
     return channel.members
         .filter(user => user.id != member.id)
