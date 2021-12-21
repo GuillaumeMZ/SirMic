@@ -22,7 +22,7 @@ function changeBotStatus(){
 }
 
 function getRandomStatus(){
-    return botStatuses[Math.round(Math.random() * botStatuses.length)];
+    return botStatuses[Math.round(Math.random() * (botStatuses.length - 1))];
 }
 
 function canMemberEarnXp(channel, member){
