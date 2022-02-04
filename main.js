@@ -79,7 +79,10 @@ discordClient.on('interactionCreate', async interaction => {
     if(!interaction.isCommand()) return;
 
     const commandName = interaction.commandName;
-    await commands.find(command => command.commandName === commandName).execute(interaction, sqlConnection);
+    const foundCommand = await commands.find(command => command.commandName === commandName);
+
+    if(foundCommand !== undefined)
+        foundCommand.execute(interaction, sqlConnection);
 });
 
 discordClient.on('voiceStateUpdate', async (oldState, newState) => {
